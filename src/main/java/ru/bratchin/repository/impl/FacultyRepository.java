@@ -1,6 +1,6 @@
 package ru.bratchin.repository.impl;
 
-import ru.bratchin.config.DatabaseConnectionManager;
+import ru.bratchin.util.DatabaseConnectionManager;
 import ru.bratchin.entity.Faculty;
 import ru.bratchin.repository.api.FacultyRepositoryApi;
 
@@ -14,7 +14,7 @@ public class FacultyRepository implements FacultyRepositoryApi {
     @Override
     public List<Faculty> findAll() throws SQLException {
         String query = "SELECT * FROM faculty ORDER BY name";
-        try (Statement stmt = connection.createStatement();
+        try (PreparedStatement stmt = connection.prepareStatement(query);
              ResultSet rs = stmt.executeQuery(query)) {
             List<Faculty> faculties = new ArrayList<>();
             while (rs.next()) {

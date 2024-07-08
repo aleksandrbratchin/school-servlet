@@ -1,6 +1,6 @@
 package ru.bratchin.repository.impl;
 
-import ru.bratchin.config.DatabaseConnectionManager;
+import ru.bratchin.util.DatabaseConnectionManager;
 import ru.bratchin.entity.Student;
 import ru.bratchin.repository.api.StudentRepositoryApi;
 
@@ -12,12 +12,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 public class StudentRepository implements StudentRepositoryApi {
+
     private final Connection connection = DatabaseConnectionManager.getConnection();
 
     @Override
     public List<Student> findAll() throws SQLException {
         String query = "SELECT * FROM student ORDER BY last_name, first_name";
-        try (Statement stmt = connection.createStatement();
+        try (PreparedStatement stmt = connection.prepareStatement(query);
              ResultSet rs = stmt.executeQuery(query)) {
             List<Student> students = new ArrayList<>();
             while (rs.next()) {
