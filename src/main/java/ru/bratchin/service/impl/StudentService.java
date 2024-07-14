@@ -1,11 +1,12 @@
 package ru.bratchin.service.impl;
 
-import ru.bratchin.util.ObjectFactory;
+import ru.bratchin.dto.StudentDto;
 import ru.bratchin.entity.Student;
+import ru.bratchin.mapper.Mapper;
 import ru.bratchin.repository.api.StudentRepositoryApi;
 import ru.bratchin.service.api.StudentServiceApi;
+import ru.bratchin.util.ObjectFactory;
 
-import java.sql.SQLException;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -14,29 +15,31 @@ public class StudentService implements StudentServiceApi {
 
     private final StudentRepositoryApi studentRepository = ObjectFactory.getInstance().createObject(StudentRepositoryApi.class);
 
+    private final Mapper<Student, StudentDto> studentMapper = ObjectFactory.getInstance().createObject(Mapper.class, "studentMapper");
+
     @Override
-    public List<Student> getAll() throws SQLException {
-        return studentRepository.findAll();
+    public List<StudentDto> getAll() {
+        return studentRepository.findAll().stream().map(studentMapper::toDto).toList();
     }
 
     @Override
-    public Student getById(UUID id) throws SQLException {
-        return studentRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Student not found with id: " + id));
+    public StudentDto getById(UUID id) {
+        return studentMapper.toDto(studentRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Student not found with id: " + id)));
     }
 
     @Override
-    public void save(Student student) throws SQLException {
-        studentRepository.save(student);
+    public void save(StudentDto student) {
+        studentRepository.save(studentMapper.toEntity(student));
     }
 
     @Override
-    public void update(Student student) throws SQLException {
-        studentRepository.update(student);
+    public void update(StudentDto student) {
+        studentRepository.update(studentMapper.toEntity(student));
     }
 
     @Override
-    public void deleteById(UUID id) throws SQLException {
+    public void deleteById(UUID id) {
         studentRepository.deleteById(id);
     }
 }

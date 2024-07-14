@@ -8,9 +8,13 @@ import ru.bratchin.mapper.FacultyMapper;
 import ru.bratchin.mapper.Mapper;
 import ru.bratchin.mapper.StudentMapper;
 import ru.bratchin.repository.api.FacultyRepositoryApi;
+import ru.bratchin.repository.api.StudentRepositoryApi;
 import ru.bratchin.repository.impl.FacultyRepository;
+import ru.bratchin.repository.impl.StudentRepository;
 import ru.bratchin.service.api.FacultyServiceApi;
+import ru.bratchin.service.api.StudentServiceApi;
 import ru.bratchin.service.impl.FacultyService;
+import ru.bratchin.service.impl.StudentService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +40,14 @@ public class ObjectFactory {
 
         ifcToImplClass.put(FacultyRepositoryApi.class, Map.of(
                 "default", FacultyRepository.class
+        ));
+
+        ifcToImplClass.put(StudentServiceApi.class, Map.of(
+                "default", StudentService.class
+        ));
+
+        ifcToImplClass.put(StudentRepositoryApi.class, Map.of(
+                "default", StudentRepository.class
         ));
 
         ifcToImplClass.put(Mapper.class, Map.of(
