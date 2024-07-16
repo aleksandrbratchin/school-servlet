@@ -1,5 +1,7 @@
 package ru.bratchin.repository.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.bratchin.entity.Student;
 import ru.bratchin.repository.api.StudentRepositoryApi;
 import ru.bratchin.util.DatabaseConnectionManager;
@@ -11,6 +13,7 @@ import java.util.*;
 
 public class StudentRepository implements StudentRepositoryApi {
 
+    private static final Logger logger = LoggerFactory.getLogger(StudentRepository.class);
     private final Connection connection = DatabaseConnectionManager.getConnection();
 
     @Override
@@ -25,16 +28,16 @@ public class StudentRepository implements StudentRepositoryApi {
             }
             return students;
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.error("Error finding all students", e);
             return Collections.emptyList();
         }
     }
 
     @Override
     public Optional<Student> findById(UUID id) {
-        String query = "SELECT * FROM student WHERE CAST(id AS text) = ?";
+        String query = "SELECT * FROM student WHERE id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, id.toString());
+            stmt.setObject(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     Student student = mapResultSetToStudent(rs);
@@ -44,7 +47,7 @@ public class StudentRepository implements StudentRepositoryApi {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.error("Error finding student by ID: " + id, e);
             return Optional.empty();
         }
     }
@@ -54,6 +57,7 @@ public class StudentRepository implements StudentRepositoryApi {
         String query = "INSERT INTO student (id, first_name, last_name, course, admission_date, date_of_graduation, faculty_id) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            connection.setAutoCommit(false);
             stmt.setObject(1, UUID.randomUUID());
             stmt.setString(2, student.getFirstName());
             stmt.setString(3, student.getLastName());
@@ -62,49 +66,87 @@ public class StudentRepository implements StudentRepositoryApi {
             stmt.setDate(6, student.getDateOfGraduation() != null ? Date.valueOf(student.getDateOfGraduation()) : null);
             stmt.setObject(7, student.getFacultyId());
             stmt.executeUpdate();
+            connection.commit();
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.error("Error saving student", e);
+            try {
+                connection.rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Error during rollback", rollbackEx);
+            }
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                logger.error("Error resetting auto commit", e);
+            }
         }
     }
 
     @Override
     public void update(Student student) {
         String query = "UPDATE student SET first_name = ?, last_name = ?, course = ?, " +
-                "admission_date = ?, date_of_graduation = ?, faculty_id = ? WHERE CAST(id AS text) = ?";
+                "admission_date = ?, date_of_graduation = ?, faculty_id = ? WHERE id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            connection.setAutoCommit(false);
             stmt.setString(1, student.getFirstName());
             stmt.setString(2, student.getLastName());
             stmt.setInt(3, student.getCourse());
             stmt.setDate(4, Date.valueOf(student.getAdmissionDate()));
             stmt.setDate(5, student.getDateOfGraduation() != null ? Date.valueOf(student.getDateOfGraduation()) : null);
             stmt.setObject(6, student.getFacultyId());
-            stmt.setString(7, student.getId().toString());
+            stmt.setObject(7, student.getId());
             stmt.executeUpdate();
+            connection.commit();
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.error("Error updating student", e);
+            try {
+                connection.rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Error during rollback", rollbackEx);
+            }
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                logger.error("Error resetting auto commit", e);
+            }
         }
     }
 
     @Override
     public void deleteById(UUID id) {
-        String query = "DELETE FROM student WHERE CAST(id AS text) = ?";
+        String query = "DELETE FROM student WHERE id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            stmt.setString(1, id.toString());
+            connection.setAutoCommit(false);
+            stmt.setObject(1, id);
             stmt.executeUpdate();
+            connection.commit();
         } catch (SQLException e) {
-            e.printStackTrace();
+            logger.error("Error deleting student by ID: " + id, e);
+            try {
+                connection.rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Error during rollback", rollbackEx);
+            }
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                logger.error("Error resetting auto commit", e);
+            }
         }
     }
 
     private static Student mapResultSetToStudent(ResultSet rs) throws SQLException {
-        UUID id = UUID.fromString(rs.getString("id"));
+        UUID id = (UUID) rs.getObject("id");
         String firstName = rs.getString("first_name");
         String lastName = rs.getString("last_name");
         int course = rs.getInt("course");
         LocalDate admissionDate = rs.getDate("admission_date").toLocalDate();
         Date dateOfGraduation = rs.getDate("date_of_graduation");
         LocalDate graduationDate = dateOfGraduation != null ? dateOfGraduation.toLocalDate() : null;
-        UUID facultyId = UUID.fromString(rs.getString("faculty_id"));
+        UUID facultyId = (UUID) rs.getObject("faculty_id");
 
         return new Student(id, firstName, lastName, course, admissionDate, graduationDate, facultyId);
     }
