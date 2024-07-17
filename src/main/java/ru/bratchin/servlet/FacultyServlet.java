@@ -5,6 +5,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import ru.bratchin.dto.FacultyDto;
 import ru.bratchin.service.api.FacultyServiceApi;
 import ru.bratchin.util.ObjectFactory;
@@ -14,10 +15,17 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @WebServlet("/faculty/*")
+@RequiredArgsConstructor
 public class FacultyServlet extends HttpServlet {
-    private final FacultyServiceApi service = ObjectFactory.getInstance().createObject(FacultyServiceApi.class);
 
-    private final ObjectMapper objectMapper = ObjectFactory.getInstance().createObject(ObjectMapper.class);
+    private final FacultyServiceApi service;
+
+    private final ObjectMapper objectMapper;
+
+    public FacultyServlet() {
+        this.service = ObjectFactory.getInstance().createObject(FacultyServiceApi.class);
+        this.objectMapper = ObjectFactory.getInstance().createObject(ObjectMapper.class);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) {

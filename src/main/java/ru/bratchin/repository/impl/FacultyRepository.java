@@ -4,26 +4,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.bratchin.entity.Faculty;
 import ru.bratchin.entity.Student;
+import ru.bratchin.exception.faculty.FacultyDeleteException;
+import ru.bratchin.exception.faculty.FacultyNotFoundException;
+import ru.bratchin.exception.faculty.FacultySaveException;
+import ru.bratchin.exception.faculty.FacultyUpdateException;
 import ru.bratchin.repository.api.FacultyRepositoryApi;
-import ru.bratchin.util.DatabaseConnectionManager;
+import ru.bratchin.util.DataSource;
 
 import java.sql.Date;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.*;
 
-
 public class FacultyRepository implements FacultyRepositoryApi {
 
     private static final Logger logger = LoggerFactory.getLogger(FacultyRepository.class);
-    private final Connection connection = DatabaseConnectionManager.getConnection();
 
     @Override
     public List<Faculty> findAll() {
         String query = "SELECT f.*, s.id AS student_id, " +
                 "s.first_name, s.last_name, s.course, s.admission_date, s.date_of_graduation, s.faculty_id " +
                 "FROM faculty f LEFT JOIN student s ON f.id = s.faculty_id ORDER BY f.name";
-        try (PreparedStatement stmt = connection.prepareStatement(query);
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query);
              ResultSet rs = stmt.executeQuery()) {
             Map<UUID, Faculty> facultyMap = new LinkedHashMap<>();
             while (rs.next()) {
@@ -38,7 +41,7 @@ public class FacultyRepository implements FacultyRepositoryApi {
                         f.setStudents(new ArrayList<>());
                         return f;
                     } catch (SQLException e) {
-                        throw new RuntimeException(e);
+                        throw new RuntimeException(e); // Can replace with a custom unchecked exception if needed
                     }
                 });
 
@@ -61,7 +64,8 @@ public class FacultyRepository implements FacultyRepositoryApi {
                 "s.first_name, s.last_name, s.course, s.admission_date, s.date_of_graduation, s.faculty_id " +
                 "FROM faculty f LEFT JOIN student s ON f.id = s.faculty_id " +
                 "WHERE f.id = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setObject(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 Faculty faculty = null;
@@ -80,63 +84,44 @@ public class FacultyRepository implements FacultyRepositoryApi {
                         faculty.getStudents().add(student);
                     }
                 }
-                return Optional.ofNullable(faculty);
+                if (faculty == null) {
+                    throw new FacultyNotFoundException("Faculty with ID " + id + " not found");
+                }
+                return Optional.of(faculty);
             }
         } catch (SQLException e) {
             logger.error("Error finding faculty by ID: " + id, e);
-            return Optional.empty();
+            throw new FacultyNotFoundException("Error finding faculty by ID: " + id, e);
         }
     }
 
     @Override
     public void save(Faculty faculty) {
         String query = "INSERT INTO faculty (id, name, description) VALUES (?, ?, ?)";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            connection.setAutoCommit(false);
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setObject(1, UUID.randomUUID());
             stmt.setString(2, faculty.getName());
             stmt.setString(3, faculty.getDescription());
             stmt.executeUpdate();
-            connection.commit();
         } catch (SQLException e) {
             logger.error("Error saving faculty", e);
-            try {
-                connection.rollback();
-            } catch (SQLException rollbackEx) {
-                logger.error("Error during rollback", rollbackEx);
-            }
-        } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                logger.error("Error resetting auto commit", e);
-            }
+            throw new FacultySaveException("Failed to save faculty", e);
         }
     }
 
     @Override
     public void update(Faculty faculty) {
         String query = "UPDATE faculty SET name = ?, description = ? WHERE id = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            connection.setAutoCommit(false);
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, faculty.getName());
             stmt.setString(2, faculty.getDescription());
             stmt.setObject(3, faculty.getId());
             stmt.executeUpdate();
-            connection.commit();
         } catch (SQLException e) {
             logger.error("Error updating faculty", e);
-            try {
-                connection.rollback();
-            } catch (SQLException rollbackEx) {
-                logger.error("Error during rollback", rollbackEx);
-            }
-        } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                logger.error("Error resetting auto commit", e);
-            }
+            throw new FacultyUpdateException("Failed to update faculty", e);
         }
     }
 
@@ -144,29 +129,40 @@ public class FacultyRepository implements FacultyRepositoryApi {
     public void deleteById(UUID id) {
         String deleteStudentsQuery = "DELETE FROM student WHERE faculty_id = ?";
         String deleteFacultyQuery = "DELETE FROM faculty WHERE id = ?";
-        try (PreparedStatement deleteStudentsStmt = connection.prepareStatement(deleteStudentsQuery);
-             PreparedStatement deleteFacultyStmt = connection.prepareStatement(deleteFacultyQuery)) {
+        Connection connection = null;
+        try {
+            connection = DataSource.getConnection();
             connection.setAutoCommit(false);
 
-            deleteStudentsStmt.setObject(1, id);
-            deleteStudentsStmt.executeUpdate();
+            try (PreparedStatement deleteStudentsStmt = connection.prepareStatement(deleteStudentsQuery)) {
+                deleteStudentsStmt.setObject(1, id);
+                deleteStudentsStmt.executeUpdate();
+            }
 
-            deleteFacultyStmt.setObject(1, id);
-            deleteFacultyStmt.executeUpdate();
+            try (PreparedStatement deleteFacultyStmt = connection.prepareStatement(deleteFacultyQuery)) {
+                deleteFacultyStmt.setObject(1, id);
+                deleteFacultyStmt.executeUpdate();
+            }
 
             connection.commit();
         } catch (SQLException e) {
-            logger.error("Error deleting faculty by ID: " + id, e);
-            try {
-                connection.rollback();
-            } catch (SQLException rollbackEx) {
-                logger.error("Error during rollback", rollbackEx);
+            if (connection != null) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackEx) {
+                    logger.error("Error during rollback", rollbackEx);
+                }
             }
+            logger.error("Error deleting faculty by ID: " + id, e);
+            throw new FacultyDeleteException("Failed to delete faculty", e);
         } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                logger.error("Error resetting auto commit", e);
+            if (connection != null) {
+                try {
+                    connection.setAutoCommit(true);
+                    connection.close();
+                } catch (SQLException e) {
+                    logger.error("Error resetting auto commit or closing connection", e);
+                }
             }
         }
     }

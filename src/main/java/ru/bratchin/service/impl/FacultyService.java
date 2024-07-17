@@ -13,9 +13,19 @@ import java.util.UUID;
 
 public class FacultyService implements FacultyServiceApi {
 
-    private final FacultyRepositoryApi facultyRepository = ObjectFactory.getInstance().createObject(FacultyRepositoryApi.class);
+    private final FacultyRepositoryApi facultyRepository;
 
-    private final Mapper<Faculty, FacultyDto> facultyMapper = ObjectFactory.getInstance().createObject(Mapper.class, "facultyMapper");
+    private final Mapper<Faculty, FacultyDto> facultyMapper;
+
+    public FacultyService() {
+        facultyRepository = ObjectFactory.getInstance().createObject(FacultyRepositoryApi.class);
+        facultyMapper = ObjectFactory.getInstance().createObject(Mapper.class, "facultyMapper");
+    }
+
+    public FacultyService(FacultyRepositoryApi facultyRepository, Mapper<Faculty, FacultyDto> facultyMapper) {
+        this.facultyRepository = facultyRepository;
+        this.facultyMapper = facultyMapper;
+    }
 
     @Override
     public List<FacultyDto> getAll() {

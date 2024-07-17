@@ -10,7 +10,15 @@ import java.util.ArrayList;
 
 public class FacultyMapper implements Mapper<Faculty, FacultyDto> {
 
-    private final Mapper<Student, StudentDto> studentMapper = ObjectFactory.getInstance().createObject(Mapper.class, "studentMapper");
+    private final Mapper<Student, StudentDto> studentMapper;
+
+    public FacultyMapper() {
+        studentMapper = ObjectFactory.getInstance().createObject(Mapper.class, "studentMapper");
+    }
+
+    public FacultyMapper(Mapper<Student, StudentDto> studentMapper) {
+        this.studentMapper = studentMapper;
+    }
 
     @Override
     public FacultyDto toDto(Faculty faculty) {

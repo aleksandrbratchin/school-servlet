@@ -13,9 +13,19 @@ import java.util.UUID;
 
 public class StudentService implements StudentServiceApi {
 
-    private final StudentRepositoryApi studentRepository = ObjectFactory.getInstance().createObject(StudentRepositoryApi.class);
+    private final StudentRepositoryApi studentRepository;
 
-    private final Mapper<Student, StudentDto> studentMapper = ObjectFactory.getInstance().createObject(Mapper.class, "studentMapper");
+    private final Mapper<Student, StudentDto> studentMapper;
+
+    public StudentService() {
+        studentRepository = ObjectFactory.getInstance().createObject(StudentRepositoryApi.class);
+        studentMapper = ObjectFactory.getInstance().createObject(Mapper.class, "studentMapper");
+    }
+
+    public StudentService(StudentRepositoryApi studentRepository, Mapper<Student, StudentDto> studentMapper) {
+        this.studentRepository = studentRepository;
+        this.studentMapper = studentMapper;
+    }
 
     @Override
     public List<StudentDto> getAll() {

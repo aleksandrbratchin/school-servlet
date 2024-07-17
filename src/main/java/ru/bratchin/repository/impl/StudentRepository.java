@@ -3,8 +3,12 @@ package ru.bratchin.repository.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.bratchin.entity.Student;
+import ru.bratchin.exception.student.StudentDeleteException;
+import ru.bratchin.exception.student.StudentNotFoundException;
+import ru.bratchin.exception.student.StudentSaveException;
+import ru.bratchin.exception.student.StudentUpdateException;
 import ru.bratchin.repository.api.StudentRepositoryApi;
-import ru.bratchin.util.DatabaseConnectionManager;
+import ru.bratchin.util.DataSource;
 
 import java.sql.Date;
 import java.sql.*;
@@ -14,12 +18,12 @@ import java.util.*;
 public class StudentRepository implements StudentRepositoryApi {
 
     private static final Logger logger = LoggerFactory.getLogger(StudentRepository.class);
-    private final Connection connection = DatabaseConnectionManager.getConnection();
 
     @Override
     public List<Student> findAll() {
         String query = "SELECT * FROM student ORDER BY last_name, first_name";
-        try (PreparedStatement stmt = connection.prepareStatement(query);
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query);
              ResultSet rs = stmt.executeQuery()) {
             List<Student> students = new ArrayList<>();
             while (rs.next()) {
@@ -36,19 +40,20 @@ public class StudentRepository implements StudentRepositoryApi {
     @Override
     public Optional<Student> findById(UUID id) {
         String query = "SELECT * FROM student WHERE id = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setObject(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     Student student = mapResultSetToStudent(rs);
                     return Optional.of(student);
                 } else {
-                    return Optional.empty();
+                    throw new StudentNotFoundException("Student with ID " + id + " not found");
                 }
             }
         } catch (SQLException e) {
             logger.error("Error finding student by ID: " + id, e);
-            return Optional.empty();
+            throw new StudentNotFoundException("Error finding student by ID: " + id, e);
         }
     }
 
@@ -56,8 +61,8 @@ public class StudentRepository implements StudentRepositoryApi {
     public void save(Student student) {
         String query = "INSERT INTO student (id, first_name, last_name, course, admission_date, date_of_graduation, faculty_id) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?)";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            connection.setAutoCommit(false);
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setObject(1, UUID.randomUUID());
             stmt.setString(2, student.getFirstName());
             stmt.setString(3, student.getLastName());
@@ -66,20 +71,9 @@ public class StudentRepository implements StudentRepositoryApi {
             stmt.setDate(6, student.getDateOfGraduation() != null ? Date.valueOf(student.getDateOfGraduation()) : null);
             stmt.setObject(7, student.getFacultyId());
             stmt.executeUpdate();
-            connection.commit();
         } catch (SQLException e) {
             logger.error("Error saving student", e);
-            try {
-                connection.rollback();
-            } catch (SQLException rollbackEx) {
-                logger.error("Error during rollback", rollbackEx);
-            }
-        } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                logger.error("Error resetting auto commit", e);
-            }
+            throw new StudentSaveException("Failed to save student", e);
         }
     }
 
@@ -87,8 +81,8 @@ public class StudentRepository implements StudentRepositoryApi {
     public void update(Student student) {
         String query = "UPDATE student SET first_name = ?, last_name = ?, course = ?, " +
                 "admission_date = ?, date_of_graduation = ?, faculty_id = ? WHERE id = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            connection.setAutoCommit(false);
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setString(1, student.getFirstName());
             stmt.setString(2, student.getLastName());
             stmt.setInt(3, student.getCourse());
@@ -97,48 +91,26 @@ public class StudentRepository implements StudentRepositoryApi {
             stmt.setObject(6, student.getFacultyId());
             stmt.setObject(7, student.getId());
             stmt.executeUpdate();
-            connection.commit();
         } catch (SQLException e) {
             logger.error("Error updating student", e);
-            try {
-                connection.rollback();
-            } catch (SQLException rollbackEx) {
-                logger.error("Error during rollback", rollbackEx);
-            }
-        } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                logger.error("Error resetting auto commit", e);
-            }
+            throw new StudentUpdateException("Failed to update student", e);
         }
     }
 
     @Override
     public void deleteById(UUID id) {
         String query = "DELETE FROM student WHERE id = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(query)) {
-            connection.setAutoCommit(false);
+        try (Connection connection = DataSource.getConnection();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setObject(1, id);
             stmt.executeUpdate();
-            connection.commit();
         } catch (SQLException e) {
             logger.error("Error deleting student by ID: " + id, e);
-            try {
-                connection.rollback();
-            } catch (SQLException rollbackEx) {
-                logger.error("Error during rollback", rollbackEx);
-            }
-        } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException e) {
-                logger.error("Error resetting auto commit", e);
-            }
+            throw new StudentDeleteException("Failed to delete student", e);
         }
     }
 
-    private static Student mapResultSetToStudent(ResultSet rs) throws SQLException {
+    private Student mapResultSetToStudent(ResultSet rs) throws SQLException {
         UUID id = (UUID) rs.getObject("id");
         String firstName = rs.getString("first_name");
         String lastName = rs.getString("last_name");
