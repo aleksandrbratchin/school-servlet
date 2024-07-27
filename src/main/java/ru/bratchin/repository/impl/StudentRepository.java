@@ -19,11 +19,18 @@ public class StudentRepository implements StudentRepositoryApi {
 
     private static final Logger logger = LoggerFactory.getLogger(StudentRepository.class);
 
+    private static final String FIND_ALL_QUERY = "SELECT * FROM student ORDER BY last_name, first_name";
+    private static final String FIND_BY_ID_QUERY = "SELECT * FROM student WHERE id = ?";
+    private static final String SAVE_QUERY = "INSERT INTO student (id, first_name, last_name, course, admission_date, date_of_graduation, faculty_id) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?)";
+    private static final String UPDATE_QUERY = "UPDATE student SET first_name = ?, last_name = ?, course = ?, " +
+            "admission_date = ?, date_of_graduation = ?, faculty_id = ? WHERE id = ?";
+    private static final String DELETE_QUERY = "DELETE FROM student WHERE id = ?";
+
     @Override
     public List<Student> findAll() {
-        String query = "SELECT * FROM student ORDER BY last_name, first_name";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query);
+             PreparedStatement stmt = connection.prepareStatement(FIND_ALL_QUERY);
              ResultSet rs = stmt.executeQuery()) {
             List<Student> students = new ArrayList<>();
             while (rs.next()) {
@@ -39,9 +46,8 @@ public class StudentRepository implements StudentRepositoryApi {
 
     @Override
     public Optional<Student> findById(UUID id) {
-        String query = "SELECT * FROM student WHERE id = ?";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connection.prepareStatement(FIND_BY_ID_QUERY)) {
             stmt.setObject(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -59,10 +65,8 @@ public class StudentRepository implements StudentRepositoryApi {
 
     @Override
     public void save(Student student) {
-        String query = "INSERT INTO student (id, first_name, last_name, course, admission_date, date_of_graduation, faculty_id) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connection.prepareStatement(SAVE_QUERY)) {
             stmt.setObject(1, UUID.randomUUID());
             stmt.setString(2, student.getFirstName());
             stmt.setString(3, student.getLastName());
@@ -79,10 +83,8 @@ public class StudentRepository implements StudentRepositoryApi {
 
     @Override
     public void update(Student student) {
-        String query = "UPDATE student SET first_name = ?, last_name = ?, course = ?, " +
-                "admission_date = ?, date_of_graduation = ?, faculty_id = ? WHERE id = ?";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connection.prepareStatement(UPDATE_QUERY)) {
             stmt.setString(1, student.getFirstName());
             stmt.setString(2, student.getLastName());
             stmt.setInt(3, student.getCourse());
@@ -99,9 +101,8 @@ public class StudentRepository implements StudentRepositoryApi {
 
     @Override
     public void deleteById(UUID id) {
-        String query = "DELETE FROM student WHERE id = ?";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connection.prepareStatement(DELETE_QUERY)) {
             stmt.setObject(1, id);
             stmt.executeUpdate();
         } catch (SQLException e) {

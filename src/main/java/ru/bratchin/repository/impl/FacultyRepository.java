@@ -20,13 +20,22 @@ public class FacultyRepository implements FacultyRepositoryApi {
 
     private static final Logger logger = LoggerFactory.getLogger(FacultyRepository.class);
 
+    private static final String FIND_ALL_QUERY = "SELECT f.*, s.id AS student_id, " +
+            "s.first_name, s.last_name, s.course, s.admission_date, s.date_of_graduation, s.faculty_id " +
+            "FROM faculty f LEFT JOIN student s ON f.id = s.faculty_id ORDER BY f.name";
+    private static final String FIND_BY_ID_QUERY = "SELECT f.*, s.id AS student_id, " +
+            "s.first_name, s.last_name, s.course, s.admission_date, s.date_of_graduation, s.faculty_id " +
+            "FROM faculty f LEFT JOIN student s ON f.id = s.faculty_id " +
+            "WHERE f.id = ?";
+    private static final String SAVE_QUERY = "INSERT INTO faculty (id, name, description) VALUES (?, ?, ?)";
+    private static final String UPDATE_QUERY = "UPDATE faculty SET name = ?, description = ? WHERE id = ?";
+    private static final String DELETE_STUDENTS_QUERY = "DELETE FROM student WHERE faculty_id = ?";
+    private static final String DELETE_FACULTY_QUERY = "DELETE FROM faculty WHERE id = ?";
+
     @Override
     public List<Faculty> findAll() {
-        String query = "SELECT f.*, s.id AS student_id, " +
-                "s.first_name, s.last_name, s.course, s.admission_date, s.date_of_graduation, s.faculty_id " +
-                "FROM faculty f LEFT JOIN student s ON f.id = s.faculty_id ORDER BY f.name";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query);
+             PreparedStatement stmt = connection.prepareStatement(FIND_ALL_QUERY);
              ResultSet rs = stmt.executeQuery()) {
             Map<UUID, Faculty> facultyMap = new LinkedHashMap<>();
             while (rs.next()) {
@@ -60,12 +69,8 @@ public class FacultyRepository implements FacultyRepositoryApi {
 
     @Override
     public Optional<Faculty> findById(UUID id) {
-        String query = "SELECT f.*, s.id AS student_id, " +
-                "s.first_name, s.last_name, s.course, s.admission_date, s.date_of_graduation, s.faculty_id " +
-                "FROM faculty f LEFT JOIN student s ON f.id = s.faculty_id " +
-                "WHERE f.id = ?";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connection.prepareStatement(FIND_BY_ID_QUERY)) {
             stmt.setObject(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 Faculty faculty = null;
@@ -97,9 +102,8 @@ public class FacultyRepository implements FacultyRepositoryApi {
 
     @Override
     public void save(Faculty faculty) {
-        String query = "INSERT INTO faculty (id, name, description) VALUES (?, ?, ?)";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connection.prepareStatement(SAVE_QUERY)) {
             stmt.setObject(1, UUID.randomUUID());
             stmt.setString(2, faculty.getName());
             stmt.setString(3, faculty.getDescription());
@@ -112,9 +116,8 @@ public class FacultyRepository implements FacultyRepositoryApi {
 
     @Override
     public void update(Faculty faculty) {
-        String query = "UPDATE faculty SET name = ?, description = ? WHERE id = ?";
         try (Connection connection = DataSource.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(query)) {
+             PreparedStatement stmt = connection.prepareStatement(UPDATE_QUERY)) {
             stmt.setString(1, faculty.getName());
             stmt.setString(2, faculty.getDescription());
             stmt.setObject(3, faculty.getId());
@@ -127,19 +130,17 @@ public class FacultyRepository implements FacultyRepositoryApi {
 
     @Override
     public void deleteById(UUID id) {
-        String deleteStudentsQuery = "DELETE FROM student WHERE faculty_id = ?";
-        String deleteFacultyQuery = "DELETE FROM faculty WHERE id = ?";
         Connection connection = null;
         try {
             connection = DataSource.getConnection();
             connection.setAutoCommit(false);
 
-            try (PreparedStatement deleteStudentsStmt = connection.prepareStatement(deleteStudentsQuery)) {
+            try (PreparedStatement deleteStudentsStmt = connection.prepareStatement(DELETE_STUDENTS_QUERY)) {
                 deleteStudentsStmt.setObject(1, id);
                 deleteStudentsStmt.executeUpdate();
             }
 
-            try (PreparedStatement deleteFacultyStmt = connection.prepareStatement(deleteFacultyQuery)) {
+            try (PreparedStatement deleteFacultyStmt = connection.prepareStatement(DELETE_FACULTY_QUERY)) {
                 deleteFacultyStmt.setObject(1, id);
                 deleteFacultyStmt.executeUpdate();
             }
